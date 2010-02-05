@@ -1,0 +1,40 @@
+#!/bin/bash
+
+set -e
+
+usage() {
+	printf "Usage: %s [-o NEW_STDOUT] [-e NEW_STDERR] PID\n" $1;
+	exit 2
+}
+
+do_redirect() {
+	gdb -batch -x /dev/stdin -p $1 <<EOF
+	call dup2(creat("$2", 0600), $3)
+	detach
+EOF
+}
+
+while getopts o:e: name 
+do
+	case $name in
+		o) NEW_STDOUT="$OPTARG";;
+		e) NEW_STDERR="$OPTARG";;
+		?) usage;;
+	esac
+done
+
+shift $(($OPTIND - 1))
+PID=$1
+if [[ -z "$PID" ]]; then usage; fi
+
+if [[ -n "$NEW_STDOUT" ]]; then
+	do_redirect $PID $NEW_STDOUT 1
+fi
+
+if [[ -n "$NEW_STDERR" ]]; then
+	do_redirect $PID $NEW_STDERR 2
+fi
+
+if [[ -z "$NEW_STDOUT" && -z "$NEW_STDERR" ]]; then
+	echo "WARNING: No redirection requested, none performed." 1>&2
+fi
